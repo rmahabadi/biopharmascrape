@@ -1,0 +1,69 @@
+from bs4 import BeautifulSoup
+import requests
+import re
+import pandas as pd
+import numpy as np
+
+url= "https://www.biopharmcatalyst.com/calendars/fda-calendar"
+
+response = requests.get(url)
+soup = BeautifulSoup(response.text, 'lxml')
+
+cat_date=[]
+for date in soup.find_all(class_='filter-table__td js-td js-td--ticker js-td--stages js-td--indications js-td--fda js-td--portfolio js-catalyst-searchable'):
+    cat_date2= date.get("data-catalyst-searchable")
+    cat_date.append(cat_date2)
+
+website = []
+for href in soup.find_all(class_="filter-table__td js-td js-td--ticker js-td--stages js-td--indications js-td--fda js-td--portfolio js-catalyst-searchable"):
+    value2= href.find_all('a',href=True)
+    #attrs={'href':re.compile("^http://")})
+    value= re.search("\"(.*?)\"",str(value2))
+    value=value.group()
+    website.append(value)
+price=[]
+for prices in soup.find_all(class_="filter-table__td js-td js-td--price text-right"):
+    grab_price= prices.get('data-value')
+    price.append(float(grab_price))
+disease=[]
+for diseases in soup.find_all(class_="filter-table__td js-td js-td--ticker js-td--stages js-td--indications js-td--fda js-td--portfolio js-catalyst-searchable"):
+    grab_disease = diseases.get('data-indications')
+    disease.append(grab_disease)
+stage=[]
+for stages in soup.find_all(class_="filter-table__td js-td js-td--stage"):
+    grab_stage=stages.get('data-value')
+    stage.append(grab_stage)
+ticker=[]
+for tickers in website:
+    result= re.search("([A-Z])\w+",tickers)
+    result2=result.group()
+    ticker.append(result2)
+
+### Regrex search needs to be updated to account for the split instead of having two for loops###
+
+descriptions=[]
+for description in soup.find_all(class_="catalyst-note"):
+    grab_descriptions= re.search("\>(.*?)(?=\<)",str(description))
+    clean_descriptions= grab_descriptions.group()
+    descriptions.append(clean_descriptions)
+
+stage_array=np.asarray(stage)
+#creation of dictionary to be inputted into dataframe
+raw_data={'Ticker':ticker,
+          'Price':price,
+         'Stage':stage_array,
+         'Disease':disease,
+         'Website':website,
+         'Catalyst Date':cat_date,
+         'Description':descriptions}
+    #Creation of dataframe from raw_data
+df=pd.DataFrame(data=raw_data,index=None)
+splits=[]
+for char in df['Description']:
+    split_char=re.split("\>",char)
+    split_char2=split_char.pop()
+    splits.append(split_char2)
+
+df['Description']=splits
+
+print(df)
